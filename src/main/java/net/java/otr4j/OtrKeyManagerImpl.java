@@ -21,11 +21,11 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Vector;
 
-import org.bouncycastle.util.encoders.Base64;
-
 import net.java.otr4j.crypto.OtrCryptoEngine;
 import net.java.otr4j.crypto.OtrCryptoException;
 import net.java.otr4j.session.SessionID;
+
+import org.bouncycastle.util.encoders.Base64;
 
 public class OtrKeyManagerImpl implements OtrKeyManager {
 
@@ -164,7 +164,7 @@ public class OtrKeyManagerImpl implements OtrKeyManager {
 		PublicKey pubKey = keyPair.getPublic();
 
 		try {
-			return new OtrCryptoEngine().getFingerprint(pubKey);
+			return OtrCryptoEngine.getFingerprint(pubKey);
 		} catch (OtrCryptoException e) {
 			e.printStackTrace();
 			return null;
@@ -180,7 +180,7 @@ public class OtrKeyManagerImpl implements OtrKeyManager {
 		PublicKey pubKey = keyPair.getPublic();
 
 		try {
-			return new OtrCryptoEngine().getFingerprintRaw(pubKey);
+			return OtrCryptoEngine.getFingerprintRaw(pubKey);
 		} catch (OtrCryptoException e) {
 			e.printStackTrace();
 			return null;
@@ -192,7 +192,7 @@ public class OtrKeyManagerImpl implements OtrKeyManager {
 		if (remotePublicKey == null)
 			return null;
 		try {
-			return new OtrCryptoEngine().getFingerprint(remotePublicKey);
+			return OtrCryptoEngine.getFingerprint(remotePublicKey);
 		} catch (OtrCryptoException e) {
 			e.printStackTrace();
 			return null;

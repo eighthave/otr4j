@@ -93,7 +93,7 @@ public class IOTest {
 	@Test
 	public void testIOBigInt() throws Exception {
 
-		KeyPair pair = new OtrCryptoEngine().generateDHKeyPair();
+		KeyPair pair = OtrCryptoEngine.generateDHKeyPair();
 		BigInteger source = ((DHPublicKey) pair.getPublic()).getY();
 
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -119,7 +119,7 @@ public class IOTest {
 
 	@Test
 	public void testIODHPublicKey() throws Exception {
-		KeyPair pair = new OtrCryptoEngine().generateDHKeyPair();
+		KeyPair pair = OtrCryptoEngine.generateDHKeyPair();
 
 		DHPublicKey source = (DHPublicKey) pair.getPublic();
 
@@ -146,7 +146,7 @@ public class IOTest {
 
 	@Test
 	public void testIODHKeyMessage() throws Exception {
-		KeyPair pair = new OtrCryptoEngine().generateDHKeyPair();
+		KeyPair pair = OtrCryptoEngine.generateDHKeyPair();
 
 		DHKeyMessage source = new DHKeyMessage(OTRv.THREE, (DHPublicKey) pair
 				.getPublic());

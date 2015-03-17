@@ -122,21 +122,20 @@ public class AuthContext {
                         getLocalLongTermKeyPair().getPublic(),
                         getLocalDHKeyPairID());
 
-                OtrCryptoEngine otrCryptoEngine = new OtrCryptoEngine();
-                byte[] mhash = otrCryptoEngine.sha256Hmac(SerializationUtils
+                byte[] mhash = OtrCryptoEngine.sha256Hmac(SerializationUtils
                         .toByteArray(m), getM1());
-                byte[] signature = otrCryptoEngine.sign(mhash,
+                byte[] signature = OtrCryptoEngine.sign(mhash,
                         getLocalLongTermKeyPair().getPrivate());
 
                 SignatureX mysteriousX = new SignatureX(
                         getLocalLongTermKeyPair().getPublic(),
                         getLocalDHKeyPairID(), signature);
-                byte[] xEncrypted = otrCryptoEngine.aesEncrypt(getC(), null,
+                byte[] xEncrypted = OtrCryptoEngine.aesEncrypt(getC(), null,
                         SerializationUtils.toByteArray(mysteriousX));
 
                 byte[] tmp = SerializationUtils.writeData(xEncrypted);
 
-                byte[] xEncryptedHash = otrCryptoEngine.sha256Hmac160(tmp, getM2());
+                byte[] xEncryptedHash = OtrCryptoEngine.sha256Hmac160(tmp, getM2());
                 RevealSignatureMessage revealSignatureMessage =
                         new RevealSignatureMessage(getSession().getProtocolVersion(),
                                 xEncrypted, xEncryptedHash, getR());
@@ -156,15 +155,14 @@ public class AuthContext {
                     getLocalLongTermKeyPair().getPublic(),
                     getLocalDHKeyPairID());
 
-            OtrCryptoEngine otrCryptoEngine = new OtrCryptoEngine();
             byte[] mhash;
             try {
-                mhash = otrCryptoEngine.sha256Hmac(SerializationUtils.toByteArray(m), getM1p());
+                mhash = OtrCryptoEngine.sha256Hmac(SerializationUtils.toByteArray(m), getM1p());
             } catch (IOException e) {
                 throw new OtrException(e);
             }
 
-            byte[] signature = otrCryptoEngine.sign(mhash,
+            byte[] signature = OtrCryptoEngine.sign(mhash,
                     getLocalLongTermKeyPair().getPrivate());
 
             SignatureX mysteriousX = new SignatureX(getLocalLongTermKeyPair()
@@ -172,10 +170,10 @@ public class AuthContext {
 
             byte[] xEncrypted;
             try {
-                xEncrypted = otrCryptoEngine.aesEncrypt(getCp(), null,
+                xEncrypted = OtrCryptoEngine.aesEncrypt(getCp(), null,
                         SerializationUtils.toByteArray(mysteriousX));
                 byte[] tmp = SerializationUtils.writeData(xEncrypted);
-                byte[] xEncryptedHash = otrCryptoEngine.sha256Hmac160(tmp, getM2p());
+                byte[] xEncryptedHash = OtrCryptoEngine.sha256Hmac160(tmp, getM2p());
                 SignatureMessage signatureMessage =
                         new SignatureMessage(getSession().getProtocolVersion(), xEncrypted,
                                 xEncryptedHash);
@@ -277,7 +275,7 @@ public class AuthContext {
 
     public KeyPair getLocalDHKeyPair() throws OtrException {
         if (localDHKeyPair == null) {
-            localDHKeyPair = new OtrCryptoEngine().generateDHKeyPair();
+            localDHKeyPair = OtrCryptoEngine.generateDHKeyPair();
             logger.finest("Generated local D-H key pair.");
         }
         return localDHKeyPair;
@@ -289,8 +287,7 @@ public class AuthContext {
 
     private byte[] getLocalDHPublicKeyHash() throws OtrException {
         if (localDHPublicKeyHash == null) {
-            localDHPublicKeyHash = new OtrCryptoEngine()
-                    .sha256Hash(getLocalDHPublicKeyBytes());
+            localDHPublicKeyHash = OtrCryptoEngine.sha256Hash(getLocalDHPublicKeyBytes());
             logger.finest("Hashed local D-H public key.");
         }
         return localDHPublicKeyHash;
@@ -298,7 +295,7 @@ public class AuthContext {
 
     private byte[] getLocalDHPublicKeyEncrypted() throws OtrException {
         if (localDHPublicKeyEncrypted == null) {
-            localDHPublicKeyEncrypted = new OtrCryptoEngine().aesEncrypt(
+            localDHPublicKeyEncrypted = OtrCryptoEngine.aesEncrypt(
                     getR(), null, getLocalDHPublicKeyBytes());
             logger.finest("Encrypted our D-H public key.");
         }
@@ -307,7 +304,7 @@ public class AuthContext {
 
     public BigInteger getS() throws OtrException {
         if (s == null) {
-            s = new OtrCryptoEngine().generateSecret(this
+            s = OtrCryptoEngine.generateSecret(this
                     .getLocalDHKeyPair().getPrivate(), this
                     .getRemoteDHPublicKey());
             logger.finest("Generated shared secret.");
@@ -413,7 +410,7 @@ public class AuthContext {
         buff.put(b);
         buff.put(secbytes);
         byte[] sdata = buff.array();
-        return new OtrCryptoEngine().sha256Hash(sdata);
+        return OtrCryptoEngine.sha256Hash(sdata);
     }
 
     private byte[] getLocalDHPublicKeyBytes() throws OtrException {
@@ -490,16 +487,15 @@ public class AuthContext {
                 SignatureM remoteM = new SignatureM(this.getRemoteDHPublicKey(),
                         (DHPublicKey) this.getLocalDHKeyPair().getPublic(),
                         remoteLongTermPublicKey, remoteX.dhKeyID);
-                OtrCryptoEngine otrCryptoEngine = new OtrCryptoEngine();
                 // Verify signature.
                 byte[] signature;
                 try {
-                    signature = otrCryptoEngine.sha256Hmac(SerializationUtils
+                    signature = OtrCryptoEngine.sha256Hmac(SerializationUtils
                             .toByteArray(remoteM), this.getM1p());
                 } catch (IOException e) {
                     throw new OtrException(e);
                 }
-                if (!otrCryptoEngine.verify(signature, remoteLongTermPublicKey,
+                if (!OtrCryptoEngine.verify(signature, remoteLongTermPublicKey,
                         remoteX.signature)) {
                     logger.finest("Signature verification failed.");
                     return;
@@ -552,13 +548,12 @@ public class AuthContext {
                 // send
                 // it as a Data Message.
 
-                OtrCryptoEngine otrCryptoEngine = new OtrCryptoEngine();
                 // Uses r to decrypt the value of gx sent earlier
-                byte[] remoteDHPublicKeyDecrypted = otrCryptoEngine.aesDecrypt(
+                byte[] remoteDHPublicKeyDecrypted = OtrCryptoEngine.aesDecrypt(
                         m.revealedKey, null, this.getRemoteDHPublicKeyEncrypted());
 
                 // Verifies that HASH(gx) matches the value sent earlier
-                byte[] remoteDHPublicKeyHash = otrCryptoEngine
+                byte[] remoteDHPublicKeyHash = OtrCryptoEngine
                         .sha256Hash(remoteDHPublicKeyDecrypted);
                 if (!Arrays.equals(remoteDHPublicKeyHash, this
                         .getRemoteDHPublicKeyHash())) {
@@ -576,7 +571,7 @@ public class AuthContext {
                     throw new OtrException(e);
                 }
 
-                this.setRemoteDHPublicKey(otrCryptoEngine
+                this.setRemoteDHPublicKey(OtrCryptoEngine
                         .getDHPublicKey(remoteDHPublicKeyMpi));
 
                 // Verify received Data.
@@ -603,13 +598,13 @@ public class AuthContext {
                 // Verify signature.
                 byte[] signature;
                 try {
-                    signature = otrCryptoEngine.sha256Hmac(SerializationUtils
+                    signature = OtrCryptoEngine.sha256Hmac(SerializationUtils
                             .toByteArray(remoteM), this.getM1());
                 } catch (IOException e) {
                     throw new OtrException(e);
                 }
 
-                if (!otrCryptoEngine.verify(signature, remoteLongTermPublicKey,
+                if (!OtrCryptoEngine.verify(signature, remoteLongTermPublicKey,
                         remoteX.signature)) {
                     logger.finest("Signature verification failed.");
                     return;

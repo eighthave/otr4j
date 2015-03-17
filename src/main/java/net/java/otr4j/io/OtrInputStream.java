@@ -120,7 +120,7 @@ public class OtrInputStream extends FilterInputStream implements
 	public DHPublicKey readDHPublicKey() throws IOException {
 		BigInteger gyMpi = readBigInt();
 		try {
-			return new OtrCryptoEngine().getDHPublicKey(gyMpi);
+			return OtrCryptoEngine.getDHPublicKey(gyMpi);
 		} catch (Exception ex) {
 			throw new IOException();
 		}

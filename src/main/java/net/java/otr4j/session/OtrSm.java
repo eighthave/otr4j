@@ -99,8 +99,7 @@ public class OtrSm {
 		byte[] their_fp;
 		PublicKey remotePublicKey = session.getRemotePublicKey();
 		try {
-			their_fp = new OtrCryptoEngine()
-					.getFingerprintRaw(remotePublicKey);
+			their_fp = OtrCryptoEngine.getFingerprintRaw(remotePublicKey);
 		} catch (OtrCryptoException e) {
 			throw new OtrException(e);
 		}
@@ -181,7 +180,7 @@ public class OtrSm {
 	public String getFingerprint() {
 		PublicKey pubKey = session.getRemotePublicKey();
 		try {
-			return new OtrCryptoEngine().getFingerprint(pubKey);
+			return OtrCryptoEngine.getFingerprint(pubKey);
         } catch (OtrCryptoException e) {
             e.printStackTrace();
         }

@@ -337,8 +337,7 @@ public class DummyClient {
 
 		public byte[] getLocalFingerprintRaw(SessionID sessionID) {
 			try {
-				return new OtrCryptoEngine()
-						.getFingerprintRaw(getLocalKeyPair(sessionID)
+				return OtrCryptoEngine.getFingerprintRaw(getLocalKeyPair(sessionID)
 								.getPublic());
 			} catch (OtrCryptoException e) {
 				e.printStackTrace();

@@ -229,7 +229,7 @@ public class Session {
                 SessionKeys.Previous);
         sess2.setLocalPair(sess4.getLocalPair(), sess4.getLocalKeyID());
 
-        KeyPair newPair = new OtrCryptoEngine().generateDHKeyPair();
+        KeyPair newPair = OtrCryptoEngine.generateDHKeyPair();
         sess3.setLocalPair(newPair, sess3.getLocalKeyID() + 1);
         sess4.setLocalPair(newPair, sess4.getLocalKeyID() + 1);
     }
@@ -263,7 +263,7 @@ public class Session {
                     current.setS(auth.getS());
                 }
 
-                KeyPair nextDH = new OtrCryptoEngine().generateDHKeyPair();
+                KeyPair nextDH = OtrCryptoEngine.generateDHKeyPair();
                 for (int i = 0; i < this.getSessionKeys()[1].length; i++) {
                     SessionKeys current = getSessionKeysByIndex(1, i);
                     current.setRemoteDHPublicKey(auth.getRemoteDHPublicKey(), 1);
@@ -578,9 +578,7 @@ public class Session {
                     throw new OtrException(e);
                 }
 
-                OtrCryptoEngine otrCryptoEngine = new OtrCryptoEngine();
-
-                byte[] computedMAC = otrCryptoEngine.sha1Hmac(serializedT,
+                byte[] computedMAC = OtrCryptoEngine.sha1Hmac(serializedT,
                         matchingKeys.getReceivingMACKey(),
                         SerializationConstants.TYPE_LEN_MAC);
                 if (!Arrays.equals(computedMAC, data.mac)) {
@@ -598,7 +596,7 @@ public class Session {
 
                 matchingKeys.setReceivingCtr(data.ctr);
 
-                byte[] dmc = otrCryptoEngine.aesDecrypt(matchingKeys
+                byte[] dmc = OtrCryptoEngine.aesDecrypt(matchingKeys
                         .getReceivingAESKey(), matchingKeys.getReceivingCtr(),
                         data.encryptedMessage);
                 String decryptedMsgContent;
@@ -914,13 +912,11 @@ public class Session {
                     }
                 }
 
-                OtrCryptoEngine otrCryptoEngine = new OtrCryptoEngine();
-
                 byte[] data = out.toByteArray();
                 // Encrypt message.
                 logger.finest("Encrypting message with keyids (localKeyID, remoteKeyID) = ("
                         + senderKeyID + ", " + receipientKeyID + ")");
-                byte[] encryptedMsg = otrCryptoEngine.aesEncrypt(encryptionKeys
+                byte[] encryptedMsg = OtrCryptoEngine.aesEncrypt(encryptionKeys
                         .getSendingAESKey(), ctr, data);
 
                 // Get most recent keys to get the next D-H public key.
@@ -945,7 +941,7 @@ public class Session {
                     throw new OtrException(e);
                 }
 
-                byte[] mac = otrCryptoEngine.sha1Hmac(serializedT, sendingMACKey,
+                byte[] mac = OtrCryptoEngine.sha1Hmac(serializedT, sendingMACKey,
                         SerializationConstants.TYPE_LEN_MAC);
 
                 // Get old MAC keys to be revealed.
