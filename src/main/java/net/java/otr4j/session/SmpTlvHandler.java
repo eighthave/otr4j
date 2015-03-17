@@ -20,8 +20,8 @@ import net.java.otr4j.crypto.SM.SMState;
 import net.java.otr4j.io.OtrOutputStream;
 import net.java.otr4j.io.SerializationUtils;
 
-public class OtrSm {
-    
+public class SmpTlvHandler {
+
 	private SMState smstate;
     private OtrEngineHost engineHost;
 	private Session session;
@@ -32,7 +32,7 @@ public class OtrSm {
 	 * @param session The session reference.
 	 * @param engineHost The host where we can present messages or ask for the shared secret.
 	 */
-	public OtrSm(Session session, OtrEngineHost engineHost) {
+	public SmpTlvHandler(Session session, OtrEngineHost engineHost) {
 		this.session = session;
 		this.engineHost = engineHost;
 		reset();
@@ -72,7 +72,7 @@ public class OtrSm {
 
 	/**
 	 *  Respond to or initiate an SMP negotiation
-	 *  
+	 *
 	 *  @param question
 	 *  	The question to present to the peer, if initiating.
 	 *  	May be <code>null</code> for no question.
@@ -80,7 +80,7 @@ public class OtrSm {
 	 *      in order to clarify whether this is shared secret verification.
 	 *  @param secret The secret.
 	 *  @param initiating Whether we are initiating or responding to an initial request.
-	 *  
+	 *
 	 *  @return TLVs to send to the peer
      *  @throws OtrException MVN_PASS_JAVADOC_INSPECTION
 	 */
@@ -123,7 +123,7 @@ public class OtrSm {
 			System.arraycopy(our_fp, 0, combined_buf, 21, 20);
 		}
 		System.arraycopy(sessionId, 0, combined_buf, 41, sessionId.length);
-		System.arraycopy(bytes, 0, 
+		System.arraycopy(bytes, 0,
 				combined_buf, 41 + sessionId.length, bytes.length);
 
 		MessageDigest sha256;
@@ -145,7 +145,7 @@ public class OtrSm {
 			throw new OtrException(ex);
 		}
 
-		// If we've got a question, attach it to the smpmsg 
+		// If we've got a question, attach it to the smpmsg
 		if (question != null && initiating){
 			bytes = question.getBytes(SerializationUtils.UTF8);
 			byte[] qsmpmsg = new byte[bytes.length + 1 + smpmsg.length];
@@ -154,7 +154,7 @@ public class OtrSm {
 			smpmsg = qsmpmsg;
 		}
 
-		TLV sendtlv = new TLV(initiating? 
+		TLV sendtlv = new TLV(initiating?
 				(question != null ? TLV.SMP1Q:TLV.SMP1) : TLV.SMP2, smpmsg);
 		smstate.nextExpected = initiating? SM.EXPECT2 : SM.EXPECT3;
 		smstate.approved = initiating || question == null;
@@ -163,7 +163,7 @@ public class OtrSm {
 
 	/**
 	 *  Create an abort TLV and reset our state.
-	 *  
+	 *
 	 *  @return TLVs to send to the peer
      *  @throws OtrException MVN_PASS_JAVADOC_INSPECTION
 	 */
