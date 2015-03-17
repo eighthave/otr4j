@@ -75,7 +75,7 @@ public class Session {
     private SessionKeys[][] sessionKeys;
     private Vector<byte[]> oldMacKeys;
     private Logger logger;
-    private final SmpTlvHandler smpTlvHandler;
+    private SmpTlvHandler smpTlvHandler;
     private BigInteger ess;
     private OfferStatus offerStatus;
     private final InstanceTag senderTag;
@@ -96,7 +96,6 @@ public class Session {
         this.sessionStatus = SessionStatus.PLAINTEXT;
         this.offerStatus = OfferStatus.idle;
 
-        smpTlvHandler = new SmpTlvHandler(this, listener);
         this.senderTag = new InstanceTag();
         this.receiverTag = InstanceTag.ZERO_TAG;
 
@@ -120,7 +119,6 @@ public class Session {
         this.sessionStatus = SessionStatus.PLAINTEXT;
         this.offerStatus = OfferStatus.idle;
 
-        smpTlvHandler = new SmpTlvHandler(this, listener);
         this.senderTag = senderTag;
         this.receiverTag = receiverTag;
 
@@ -273,7 +271,7 @@ public class Session {
                 this.setRemotePublicKey(auth.getRemoteLongTermPublicKey());
 
                 auth.reset();
-                smpTlvHandler.reset();
+                getSmpTlvHandler().reset();
                 break;
             case FINISHED:
             case PLAINTEXT:
@@ -308,8 +306,14 @@ public class Session {
         this.host = host;
     }
 
-    private OtrEngineHost getHost() {
+    OtrEngineHost getHost() {
         return host;
+    }
+
+    private SmpTlvHandler getSmpTlvHandler() {
+        if (smpTlvHandler == null)
+            smpTlvHandler = new SmpTlvHandler(this);
+        return smpTlvHandler;
     }
 
     private SessionKeys[][] getSessionKeys() {
@@ -654,22 +658,22 @@ public class Session {
                                 this.setSessionStatus(SessionStatus.FINISHED);
                                 break;
                             case TLV.SMP1Q: //TLV7
-                                smpTlvHandler.processTlvSMP1Q(tlv);
+                                getSmpTlvHandler().processTlvSMP1Q(tlv);
                                 break;
                             case TLV.SMP1: // TLV2
-                                smpTlvHandler.processTlvSMP1(tlv);
+                                getSmpTlvHandler().processTlvSMP1(tlv);
                                 break;
                             case TLV.SMP2: // TLV3
-                                smpTlvHandler.processTlvSMP2(tlv);
+                                getSmpTlvHandler().processTlvSMP2(tlv);
                                 break;
                             case TLV.SMP3: // TLV4
-                                smpTlvHandler.processTlvSMP3(tlv);
+                                getSmpTlvHandler().processTlvSMP3(tlv);
                                 break;
                             case TLV.SMP4: // TLV5
-                                smpTlvHandler.processTlvSMP4(tlv);
+                                getSmpTlvHandler().processTlvSMP4(tlv);
                                 break;
                             case TLV.SMP_ABORT: //TLV6
-                                smpTlvHandler.processTlvSMP_ABORT(tlv);
+                                getSmpTlvHandler().processTlvSMP_ABORT(tlv);
                                 break;
                             default:
                                 logger.warning("Unsupported TLV #" + tlv.getType() + " received!");
@@ -1051,7 +1055,7 @@ public class Session {
         }
         if (this.getSessionStatus() != SessionStatus.ENCRYPTED)
             return;
-        List<TLV> tlvs = smpTlvHandler.initRespondSmp(question, secret, true);
+        List<TLV> tlvs = getSmpTlvHandler().initRespondSmp(question, secret, true);
         String[] msg = transformSending("", tlvs);
         for (String part : msg) {
             getHost().injectMessage(getSessionID(), part);
@@ -1065,7 +1069,7 @@ public class Session {
         }
         if (this.getSessionStatus() != SessionStatus.ENCRYPTED)
             return;
-        List<TLV> tlvs = smpTlvHandler.initRespondSmp(question, secret, false);
+        List<TLV> tlvs = getSmpTlvHandler().initRespondSmp(question, secret, false);
         String[] msg = transformSending("", tlvs);
         for (String part : msg) {
             getHost().injectMessage(getSessionID(), part);
@@ -1079,7 +1083,7 @@ public class Session {
         }
         if (this.getSessionStatus() != SessionStatus.ENCRYPTED)
             return;
-        List<TLV> tlvs = smpTlvHandler.abortSmp();
+        List<TLV> tlvs = getSmpTlvHandler().abortSmp();
         String[] msg = transformSending("", tlvs);
         for (String part : msg) {
             getHost().injectMessage(getSessionID(), part);
@@ -1089,7 +1093,7 @@ public class Session {
     public boolean isSmpInProgress() {
         if (this != outgoingSession && getProtocolVersion() == OTRv.THREE)
             return outgoingSession.isSmpInProgress();
-        return smpTlvHandler.isSmpInProgress();
+        return getSmpTlvHandler().isSmpInProgress();
     }
 
     public InstanceTag getSenderInstanceTag() {

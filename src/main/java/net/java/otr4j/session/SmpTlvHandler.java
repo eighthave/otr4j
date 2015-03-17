@@ -32,9 +32,9 @@ public class SmpTlvHandler {
 	 * @param session The session reference.
 	 * @param engineHost The host where we can present messages or ask for the shared secret.
 	 */
-	public SmpTlvHandler(Session session, OtrEngineHost engineHost) {
+	public SmpTlvHandler(Session session) {
 		this.session = session;
-		this.engineHost = engineHost;
+		this.engineHost = session.getHost();
 		reset();
 	}
 
