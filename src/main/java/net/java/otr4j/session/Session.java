@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.net.ProtocolException;
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.security.KeyPair;
 import java.security.PublicKey;
@@ -28,6 +29,7 @@ import java.util.logging.Logger;
 
 import javax.crypto.interfaces.DHPublicKey;
 
+import net.java.otr4j.OtrDataListener;
 import net.java.otr4j.OtrEngineHost;
 import net.java.otr4j.OtrEngineListener;
 import net.java.otr4j.OtrException;
@@ -76,6 +78,7 @@ public class Session {
     private Vector<byte[]> oldMacKeys;
     private Logger logger;
     private SmpTlvHandler smpTlvHandler;
+    private DataTlvHandler dataTlvHandler;
     private BigInteger ess;
     private OfferStatus offerStatus;
     private final InstanceTag senderTag;
@@ -314,6 +317,12 @@ public class Session {
         if (smpTlvHandler == null)
             smpTlvHandler = new SmpTlvHandler(this);
         return smpTlvHandler;
+    }
+
+    private DataTlvHandler getDataTlvHandler() {
+        if (dataTlvHandler == null)
+            dataTlvHandler = new DataTlvHandler(this);
+        return dataTlvHandler;
     }
 
     private SessionKeys[][] getSessionKeys() {
@@ -674,6 +683,12 @@ public class Session {
                                 break;
                             case TLV.SMP_ABORT: //TLV6
                                 getSmpTlvHandler().processTlvSMP_ABORT(tlv);
+                                break;
+                            case TLV.DATA_REQUEST:
+                                getDataTlvHandler().processRequest(tlv);
+                                break;
+                            case TLV.DATA_RESPONSE:
+                                getDataTlvHandler().processResponse(tlv);
                                 break;
                             default:
                                 logger.warning("Unsupported TLV #" + tlv.getType() + " received!");
@@ -1192,5 +1207,31 @@ public class Session {
 
     public Session getOutgoingInstance() {
         return outgoingSession;
+    }
+
+    /**
+     * Creates an {@code OFFER} request to announce that a file at a given URL
+     * is available for a {@code GET} request.
+     *
+     * @param uri the URL that points to the file that is being offered
+     * @param headers an optional set of HTTP headers to add
+     * @return String the unique ID for this request
+     */
+    public String offerData(URI uri, Map<String, String> headers) throws IOException {
+        return getDataTlvHandler().offerData(uri, headers);
+    }
+
+    /**
+     * Set the listener for getting feedback about inbound data transfers.
+     */
+    public void setInboundOtrDataListener(OtrDataListener listener) {
+        getDataTlvHandler().setInboundOtrDataListener(listener);
+    }
+
+    /**
+     * Set the listener for getting feedback about outbound data transfers.
+     */
+    public void setOutboundOtrDataListener(OtrDataListener listener) {
+        getDataTlvHandler().setOutboundOtrDataListener(listener);
     }
 }

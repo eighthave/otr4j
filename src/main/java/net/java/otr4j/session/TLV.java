@@ -16,6 +16,9 @@ public class TLV {
      * beginning */
     public static final int SMP1Q=0x0007;
 
+    public static final int DATA_REQUEST=0x0100;
+    public static final int DATA_RESPONSE=0x0101;
+
 	public TLV(int type, byte[] value) {
 		this.setType(type);
 		this.setValue(value);
