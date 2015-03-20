@@ -1,16 +1,16 @@
 
 package net.java.otr4j;
 
-import net.java.otr4j.session.SessionID;
+import net.java.otr4j.session.Session;
 
 public interface OtrDataListener {
 
-    void onTransferComplete(String offerId, SessionID sessionId, String urlString, String mimeType,
+    void onTransferComplete(String offerId, Session session, String urlString, String mimeType,
             String fileLocalPath);
 
-    void onTransferFailed(String offerId, SessionID sessionId, String urlString, String reason);
+    void onTransferFailed(String offerId, Session session, String urlString, String reason);
 
-    void onTransferProgress(String offerId, SessionID sessionId, String urlString, float f);
+    void onTransferProgress(String offerId, Session session, String urlString, float f);
 
-    boolean onTransferRequested(String offerId, SessionID sessionId, String urlString);
+    boolean onTransferRequested(String offerId, Session session, String urlString);
 }

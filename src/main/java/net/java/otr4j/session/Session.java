@@ -13,7 +13,6 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.net.ProtocolException;
-import java.net.URI;
 import java.nio.ByteBuffer;
 import java.security.KeyPair;
 import java.security.PublicKey;
@@ -1214,11 +1213,15 @@ public class Session {
      * is available for a {@code GET} request.
      *
      * @param uri the URL that points to the file that is being offered
-     * @param headers an optional set of HTTP headers to add
+     * @param headers an optional set of HTTP headers to add, can be null
      * @return String the unique ID for this request
      */
-    public String offerData(URI uri, Map<String, String> headers) throws IOException {
-        return getDataTlvHandler().offerData(uri, headers);
+    public String offerData(String uriPath, Map<String, String> headers) throws IOException {
+        return getDataTlvHandler().offerData(uriPath, headers);
+    }
+
+    public boolean acceptTransfer(String uriString) {
+        return getDataTlvHandler().acceptTransfer(uriString);
     }
 
     /**
