@@ -31,7 +31,10 @@ public class OtrSessionManager {
     private Map<SessionID, Session> sessions;
 
     /**
-     * Get an OTR session.
+     * Fetches the existing session with this {@link SessionID} or creates a new
+     * {@link Session} if one does not exist.
+     *
+     * @param sessionID
      * @return MVN_PASS_JAVADOC_INSPECTION
      */
     public Session getSession(SessionID sessionID) {
