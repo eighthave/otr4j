@@ -3,13 +3,17 @@ package net.java.otr4j.session;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -20,7 +24,6 @@ import net.java.otr4j.OtrDataListener;
 import net.java.otr4j.OtrEngineHost;
 import net.java.otr4j.OtrException;
 import net.java.otr4j.crypto.OtrCryptoEngine;
-import net.java.otr4j.crypto.OtrCryptoException;
 
 import org.apache.http.HttpException;
 import org.apache.http.HttpMessage;
@@ -75,7 +78,7 @@ public class DataTlvHandler {
 
     Cache<String, OfferRequest> offerCache = CacheBuilder.newBuilder().maximumSize(100).build();
     Cache<String, OtrDataRequest> requestCache = CacheBuilder.newBuilder().maximumSize(100).build();
-    Cache<String, Transfer> transferCache = CacheBuilder.newBuilder().maximumSize(100).build();
+    Cache<String, InboundTransfer> transferCache = CacheBuilder.newBuilder().maximumSize(100).build();
 
     /**
      * @param session The chat session that this handler works for.
@@ -104,14 +107,21 @@ public class DataTlvHandler {
         return outboundOtrDataListener;
     }
 
-    public String offerData(String uriPath, Map<String, String> headers)
+    public String offerData(File fileRoot, File f, Map<String, String> headers)
             throws IOException {
-        String uriString = DataTlvHandler.URI_SCHEME + uriPath;
+        URI uri = fileRoot.toURI().relativize(f.toURI());
+        String uriString = DataTlvHandler.URI_SCHEME + uri.getPath();
         logger.fine("offerData: " + uriString);
-        OfferRequest req = new OfferRequest(uriString, session.getSessionID());
+        OfferRequest req = new OfferRequest(uriString, f);
         if (headers != null)
             for (String key : headers.keySet())
                 req.setHeader(key, headers.get(key));
+        long length = f.length();
+        if (length > MAX_TRANSFER_LENGTH) {
+            throw new IOException("Length too large: " + length);
+        }
+        req.setHeader("File-Length", String.valueOf(length));
+
         offerCache.put(uriString, req);
         return sendRequest(req);
     }
@@ -125,16 +135,14 @@ public class DataTlvHandler {
         }
     }
 
-    private GetRequest performGetData(SessionID sessionId, String url,
-            Map<String, String> headers,
-            int start,
-            int end) {
-        GetRequest request = new GetRequest(url, sessionId, start, end);
+    private GetRequest performGetData(String url, Map<String, String> headers, int start, int end) {
+        GetRequest request = new GetRequest(url, start, end);
         sendRequest(request);
         return request;
     }
 
     private String sendRequest(OtrDataRequest req) {
+        logger.finer(req.getUriString());
         MemorySessionOutputBuffer outBuf = new MemorySessionOutputBuffer();
         HttpMessageWriter writer = new HttpRequestWriter(outBuf, LINEFORMATTER, PARAMS);
 
@@ -154,8 +162,10 @@ public class DataTlvHandler {
     }
 
     public boolean acceptTransfer(String uriString) {
-        logger.fine("acceptTransfer " + uriString);
-        Transfer transfer = transferCache.getIfPresent(uriString);
+        InboundTransfer transfer = transferCache.getIfPresent(uriString);
+        logger.fine(uriString + " " + transfer + " " + transferCache.size());
+        for (Map.Entry<String, InboundTransfer> m : transferCache.asMap().entrySet())
+            logger.fine("transferCache: " + m.getValue().toString());
         if (transfer != null) {
             return transfer.perform();
         }
@@ -167,7 +177,7 @@ public class DataTlvHandler {
      * {@code OFFER} or a {@code GET}.
      */
     public void processRequest(TLV tlv) {
-        logger.fine("processRequest " + tlv.toString());
+        logger.fine(new String(tlv.getValue()));
 
         SessionInputBuffer inBuf = new MemorySessionInputBuffer(tlv.getValue());
         HttpRequestParser parser = new HttpRequestParser(inBuf, LINEPARSER, requestFactory,
@@ -183,7 +193,7 @@ public class DataTlvHandler {
             e.printStackTrace();
             return;
         }
-        logger.fine("parsed " + req.toString());
+        logger.fine(req.toString());
 
         String requestMethod = req.getRequestLine().getMethod();
         String requestId = req.getFirstHeader("Request-Id").getValue();
@@ -197,15 +207,19 @@ public class DataTlvHandler {
                 return;
             }
             sendResponse(200, "OK", requestId, EMPTY_BODY);
+            if (!req.containsHeader("File-Length")) {
+                sendResponse(400, "File-Length must be supplied", requestId, EMPTY_BODY);
+                return;
+            }
+            int length = Integer.parseInt(req.getFirstHeader("File-Length").getValue());
             String type = null;
             if (req.containsHeader("Mime-Type")) {
                 type = req.getFirstHeader("Mime-Type").getValue();
             }
             logger.finest("Incoming Mime-Type " + type);
 
-            // TODO make length and sum optional
-            Transfer transfer = new Transfer(uriString, type, 1000, session.getSessionID(),
-                    "fakesum");
+            InboundTransfer transfer = new InboundTransfer(uriString, type, length);
+            logger.finer("transferCache.put(" + transfer.url);
             transferCache.put(uriString, transfer);
 
             if (inboundOtrDataListener != null)
@@ -252,12 +266,14 @@ public class DataTlvHandler {
                     return;
                 }
 
-                // TODO implement this
-                /*
-                 * float percent = ((float) end) / ((float) fileGet.length());
-                 * outboundOtrDataListener.onTransferProgress(offer.getId(),
-                 * session.getSessionID(), offer.getUri(), percent);
-                 */
+                FileInputStream is = new FileInputStream(offer.file);
+                readIntoByteBuffer(byteBuffer, is, start, end);
+                is.close();
+
+                float percent = ((float) end) / ((float) offer.file.length());
+                outboundOtrDataListener.onTransferProgress(offer.requestId,
+                        session, offer.getUriString(), percent);
+
                 String mimeType = null;
                 if (req.getFirstHeader("Mime-Type") != null)
                     mimeType = req.getFirstHeader("Mime-Type").getValue();
@@ -274,12 +290,12 @@ public class DataTlvHandler {
                 logger.finest("Sent sha1 is " + OtrCryptoEngine.sha1Hash(body));
                 sendResponse(200, "OK", requestId, body);
 
-                /*
-                 * } catch (UnsupportedEncodingException e) { sendResponse(400,
-                 * "Unsupported encoding", requestId, EMPTY_BODY); return; }
-                 * catch (IOException e) { sendResponse(400, "IOException",
-                 * requestId, EMPTY_BODY); return;
-                 */
+            } catch (UnsupportedEncodingException e) {
+                sendResponse(400, "Unsupported encoding", requestId, EMPTY_BODY);
+                return;
+            } catch (IOException e) {
+                sendResponse(400, "IOException", requestId, EMPTY_BODY);
+                return;
             } catch (NumberFormatException e) {
                 sendResponse(400, "Range is not numeric", requestId, EMPTY_BODY);
                 return;
@@ -294,7 +310,7 @@ public class DataTlvHandler {
     }
 
     public void processResponse(TLV tlv) {
-        logger.fine("processResponse: " + tlv.toString());
+        logger.fine(new String(tlv.getValue()));
         SessionInputBuffer buffer = new MemorySessionInputBuffer(tlv.getValue());
         HttpResponseParser parser = new HttpResponseParser(buffer, LINEPARSER, RESPONSEFACTORY,
                 PARAMS);
@@ -307,7 +323,7 @@ public class DataTlvHandler {
             e.printStackTrace();
             return;
         }
-        logger.fine("parsed " + res.toString());
+        logger.fine(res.toString());
 
         String requestId = res.getFirstHeader("Request-Id").getValue();
         OtrDataRequest request = requestCache.getIfPresent(requestId);
@@ -335,33 +351,31 @@ public class DataTlvHandler {
             readIntoByteBuffer(byteBuffer, buffer);
             if (request instanceof GetRequest) {
                 GetRequest getRequest = (GetRequest) request;
-                logger.finer("Received sha1 @" + getRequest.start + " is "
-                        + OtrCryptoEngine.sha1Hash(byteBuffer.toByteArray()));
-                Transfer transfer = transferCache.getIfPresent(request.getRequestLine().getUri());
+                InboundTransfer transfer = transferCache.getIfPresent(request.getUriString());
                 if (transfer == null) {
-                    logger.finer("Transfer expired for url " + request.getRequestLine().getUri());
+                    logger.severe("Transfer expired for url " + request.getUriString());
                     return;
                 }
                 transfer.chunkReceived(getRequest, byteBuffer.toByteArray());
                 if (transfer.isDone()) {
-                    logger.finer("Transfer complete for " + getRequest.getUriString());
-                    if (transfer.checkSum()) {
-                        if (inboundOtrDataListener != null)
-                            inboundOtrDataListener.onTransferComplete(
-                                    null,
-                                    session,
-                                    transfer.url,
-                                    transfer.type,
-                                    "PLACEHOLDER");
-                    } else {
-                        if (inboundOtrDataListener != null)
-                            inboundOtrDataListener.onTransferFailed(
-                                    null,
-                                    session,
-                                    transfer.url,
-                                    "checksum");
-                        logger.finer("Wrong checksum for file");
-                    }
+                    logger.fine("Transfer complete for " + getRequest.getUriString() + " "
+                            + inboundOtrDataListener + " " + outboundOtrDataListener);
+                    logger.finer("Received: (" + transfer.getBuffer().length + ") "
+                            + new String(transfer.getBuffer()));
+                    if (inboundOtrDataListener != null)
+                        inboundOtrDataListener.onTransferComplete(
+                                null,
+                                session,
+                                transfer.url,
+                                transfer.type,
+                                "PLACEHOLDER");
+                    if (outboundOtrDataListener != null)
+                        outboundOtrDataListener.onTransferComplete(
+                                null,
+                                session,
+                                transfer.url,
+                                transfer.type,
+                                "PLACEHOLDER");
                 } else {
                     if (inboundOtrDataListener != null)
                         inboundOtrDataListener.onTransferProgress(null, session,
@@ -377,8 +391,6 @@ public class DataTlvHandler {
             }
         } catch (IOException e) {
             logger.finer("Could not read line from response");
-        } catch (OtrCryptoException e) {
-            e.printStackTrace();
         }
     }
 
@@ -386,8 +398,8 @@ public class DataTlvHandler {
      * Send a response to a {@code OFFER} or a {@code GET} request.
      */
     private void sendResponse(int code, String statusString, String requestId, byte[] body) {
-        logger.fine("sendResponse " + code + " " + statusString + " " + requestId + ": "
-                + session.getSessionID());
+        logger.fine(code + " " + statusString + " " + requestId + ": "
+                + session.getSessionID() + "size: " + body.length);
         MemorySessionOutputBuffer outBuf = new MemorySessionOutputBuffer();
         HttpMessageWriter writer = new HttpResponseWriter(outBuf, LINEFORMATTER, PARAMS);
         HttpMessage response = new BasicHttpResponse(new BasicStatusLine(PROTOCOL_VERSION, code,
@@ -413,6 +425,26 @@ public class DataTlvHandler {
         String[] msg = session.transformSending("", requestTlvList);
         for (String part : msg) {
             engineHost.injectMessage(session.getSessionID(), part);
+        }
+    }
+
+    private static void readIntoByteBuffer(ByteArrayOutputStream byteBuffer, FileInputStream is,
+            int start, int end)
+            throws IOException {
+        if (start != is.skip(start)) {
+            return;
+        }
+        int size = end - start + 1;
+        int buffersize = 1024;
+        byte[] buffer = new byte[buffersize];
+
+        int len = 0;
+        while ((len = is.read(buffer)) != -1) {
+            if (len > size) {
+                len = size;
+            }
+            byteBuffer.write(buffer, 0, len);
+            size -= len;
         }
     }
 
@@ -443,9 +475,9 @@ public class DataTlvHandler {
         public HttpRequest newHttpRequest(final String method, final String uri)
                 throws MethodNotSupportedException {
             if (method.equals(GET))
-                return new GetRequest(uri, session.getSessionID());
+                return new GetRequest(uri);
             else if (method.equals(OFFER))
-                return new OfferRequest(uri, session.getSessionID());
+                return new OfferRequest(uri);
             else
                 throw new MethodNotSupportedException(method);
         }
@@ -453,22 +485,36 @@ public class DataTlvHandler {
 
     static class OfferRequest extends OtrDataRequest {
 
-        public OfferRequest(String uri, SessionID sessionId) {
-            super(OFFER, uri, sessionId);
+        final File file;
+
+        /**
+         * The received {@code OFFER} is parsed into this
+         */
+        public OfferRequest(String uri) {
+            super(OFFER, uri);
+            this.file = null;
+        }
+
+        /**
+         * The sent {@code OFFER} is created like this
+         */
+        public OfferRequest(String uri, File f) {
+            super(OFFER, uri);
+            this.file = f;
         }
     }
 
     static class GetRequest extends OtrDataRequest {
-        public GetRequest(String uri, SessionID sessionId, int start, int end) {
-            super(GET, uri, sessionId);
+        public GetRequest(String uri, int start, int end) {
+            super(GET, uri);
             this.start = start;
             this.end = end;
             String rangeSpec = "bytes=" + start + "-" + end;
             setHeader("Range", rangeSpec);
         }
 
-        public GetRequest(String uri, SessionID sessionId) {
-            super(GET, uri, sessionId);
+        public GetRequest(String uri) {
+            super(GET, uri);
             this.start = -1;
             this.end = -1;
         }
@@ -477,16 +523,14 @@ public class DataTlvHandler {
         public final int end;
     }
 
-    static class OtrDataRequest extends BasicHttpRequest {
+    static abstract class OtrDataRequest extends BasicHttpRequest {
 
-        public OtrDataRequest(String method, String uri, SessionID sessionId) {
+        public OtrDataRequest(String method, String uri) {
             super(method, uri, PROTOCOL_VERSION);
-            this.sessionId = sessionId;
             this.requestId = UUID.randomUUID().toString();
             setHeader("Request-Id", requestId);
         }
 
-        public final SessionID sessionId;
         public final String requestId;
         public boolean seen = false;
 
@@ -503,53 +547,40 @@ public class DataTlvHandler {
         }
     }
 
-    public class Transfer {
-        public final String TAG = Transfer.class.getSimpleName();
+    public class InboundTransfer {
         public String url;
         public String type;
         public int chunks = 0;
         public int chunksReceived = 0;
+        private byte[] buffer;
         private int length = 0;
         private int current = 0;
-        private SessionID sessionId;
-        protected Set<OtrDataRequest> outstanding;
-        private byte[] buffer;
-        protected String sum;
+        protected Set<GetRequest> outstanding;
 
-        public Transfer(String url, String type, int length, SessionID sessionId, String sum) {
+        public InboundTransfer(String url, String type, int length) {
             this.url = url;
             this.type = type;
             this.length = length;
-            this.sessionId = sessionId;
-            this.sum = sum;
-
-            if (length > MAX_TRANSFER_LENGTH || length <= 0) {
+            if (length > DataTlvHandler.MAX_TRANSFER_LENGTH || length <= 0) {
                 throw new RuntimeException("Invalid transfer size " + length);
             }
-            chunks = ((length - 1) / MAX_CHUNK_LENGTH) + 1;
+            chunks = ((length - 1) / DataTlvHandler.MAX_CHUNK_LENGTH) + 1;
             buffer = new byte[length];
-            outstanding = Sets.newHashSet();
-        }
-
-        public boolean checkSum() {
-            try {
-                return sum.equals(OtrCryptoEngine.sha1Hash(buffer));
-            } catch (OtrCryptoException e) {
-                return false;
-            }
+            outstanding = new HashSet<GetRequest>();
         }
 
         public boolean perform() {
             // TODO global throttle rather than this local hack
-            while (outstanding.size() < MAX_OUTSTANDING) {
+            logger.finer(outstanding.size() + " / " + length);
+            while (outstanding.size() < DataTlvHandler.MAX_OUTSTANDING) {
                 if (current >= length)
                     return false;
-                int end = current + MAX_CHUNK_LENGTH - 1;
+                int end = current + DataTlvHandler.MAX_CHUNK_LENGTH - 1;
                 if (end >= length) {
                     end = length - 1;
                 }
-                Map<String, String> headers = Maps.newHashMap();
-                OtrDataRequest request = performGetData(sessionId, url, headers, current, end);
+                Map<String, String> headers = new HashMap<String, String>();
+                GetRequest request = performGetData(url, headers, current, end);
                 outstanding.add(request);
                 current = end + 1;
             }
@@ -557,19 +588,19 @@ public class DataTlvHandler {
         }
 
         public boolean isDone() {
-            // Log.e( TAG, "isDone:" + chunksReceived + " " + chunks);
+            logger.finer(chunksReceived + " / " + chunks);
             return chunksReceived == chunks;
         }
 
         public void chunkReceived(GetRequest request, byte[] bs) {
-            // Log.e( TAG, "chunkReceived:" + bs.length);
+            logger.finer(request.getUriString() + " (" + bs.length + ") " + new String(bs));
             chunksReceived++;
             System.arraycopy(bs, 0, buffer, request.start, bs.length);
             outstanding.remove(request);
         }
 
-        public String getSum() {
-            return sum;
+        byte[] getBuffer() {
+            return buffer;
         }
     }
 

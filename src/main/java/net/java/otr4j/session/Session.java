@@ -9,6 +9,7 @@ package net.java.otr4j.session;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -1212,12 +1213,31 @@ public class Session {
      * Creates an {@code OFFER} request to announce that a file at a given URL
      * is available for a {@code GET} request.
      *
-     * @param uri the URL that points to the file that is being offered
+     * @param fileRoot root dir that is removed from path when building the URL
+     * @param f file that is being offered
      * @param headers an optional set of HTTP headers to add, can be null
      * @return String the unique ID for this request
      */
-    public String offerData(String uriPath, Map<String, String> headers) throws IOException {
-        return getDataTlvHandler().offerData(uriPath, headers);
+    public String offerData(File fileRoot, File f, Map<String, String> headers) throws IOException {
+        return getDataTlvHandler().offerData(fileRoot, f, headers);
+    }
+
+    /**
+     * Creates an {@code OFFER} request to announce that a file at a given URL
+     * is available for a {@code GET} request.
+     *
+     * @param fileRoot root dir that is removed from path when building the URL
+     * @param f file that is being offered
+     * @param mimeType the MIME Type of the file being sent
+     * @return String the unique ID for this request
+     */
+    public String offerData(File fileRoot, File f, String mimeType) throws IOException {
+        Map<String, String> headers = null;
+        if (mimeType != null) {
+            headers = new HashMap<String, String>();
+            headers.put("Mime-Type", mimeType);
+        }
+        return offerData(fileRoot, f, headers);
     }
 
     public boolean acceptTransfer(String uriString) {
